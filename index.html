@@ -322,6 +322,60 @@
   }
   .chip-toggle:hover{ border-color:#e3c684; color:#fff; }
 
+
+  /* ---------- Boolean search: autocomplete, filters, syntax help ---------- */
+  .hero{ z-index:2; }
+  .search-row{ position:relative; }
+  .search-row:focus-within{ box-shadow:0 0 0 2px #e3c684; }
+  #suggest{
+    position:absolute; left:0; right:0; top:calc(100% + 3px);
+    margin:0; padding:4px 0; list-style:none;
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:3px;
+    box-shadow:0 14px 30px rgba(15,23,29,0.4); z-index:30;
+  }
+  #suggest[hidden]{ display:none; }
+  #suggest li{
+    display:flex; justify-content:space-between; gap:14px; align-items:baseline;
+    padding:9px 16px; cursor:pointer; color:var(--ink);
+    font-family:'Fraunces', serif; font-size:16.5px;
+  }
+  #suggest li.sg-mono{ font-family:'JetBrains Mono', monospace; font-size:13.5px; }
+  #suggest li b{ font-weight:700; }
+  #suggest li:hover, #suggest li[aria-selected="true"]{ background:var(--line-soft); }
+  .sg-kind{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--ink-soft); flex-shrink:0; }
+  .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  .adv{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
+    padding-top:14px; font-family:'JetBrains Mono', monospace; font-size:11px; color:#d8d0b8;
+  }
+  .adv label, .adv .group{ display:flex; align-items:center; gap:6px; }
+  .adv input, .adv select{
+    font:inherit; color:#f4efe1; background:rgba(20,32,32,0.35);
+    border:1px solid rgba(244,239,225,0.4); border-radius:2px; padding:5px 8px;
+  }
+  .adv input[type=number]{ width:76px; appearance:textfield; -moz-appearance:textfield; }
+  .adv select option{ color:#1b2a34; background:#f8f4e8; }
+  .adv input:focus-visible, .adv select:focus-visible, .adv .chip:focus-visible, .syntax summary:focus-visible{
+    outline:2px solid #e3c684; outline-offset:2px;
+  }
+  .adv .chip{ padding:5px 10px; }
+  .syntax{ margin-top:12px; font-size:13.5px; color:#d8d0b8; }
+  .syntax summary{ cursor:pointer; color:#e3c684; font-family:'JetBrains Mono', monospace; font-size:11px; }
+  .syntax-grid{
+    display:grid; grid-template-columns:minmax(0,max-content) 1fr; gap:6px 18px;
+    margin-top:10px; padding:12px 14px; background:rgba(20,32,32,0.45); border:1px solid rgba(244,239,225,0.2);
+  }
+  .syntax-grid code{ font-family:'JetBrains Mono', monospace; font-size:12px; color:#e3c684; }
+  .parse-note{
+    padding:10px 0; border-bottom:1px solid var(--line-soft);
+    font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ink-soft);
+  }
+  .parse-note[hidden]{ display:none; }
+  .parse-note b{ color:var(--teal-deep); font-weight:600; }
+  .parse-note .warn{ display:block; margin-top:4px; color:#8a3b2e; }
+  @media (max-width:640px){ .syntax-grid{ grid-template-columns:1fr; } }
+
   /* ---------- Results section (below hero, on paper) ---------- */
   .results-section{
     padding-top:34px;
@@ -506,10 +560,47 @@
     <div class="search-block">
       <div class="search-row">
         <span class="glyph">§</span>
-        <input id="search" type="text" placeholder="Search by title, abstract or journal…" autocomplete="off">
+        <input id="search" type="text" role="combobox" aria-label="Search the catalogue" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest"
+               placeholder="Try: sukuk AND (risk OR &quot;profit sharing&quot;) -equity" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
         <button id="searchBtn">Search</button>
+        <ul id="suggest" role="listbox" aria-label="Suggestions" hidden></ul>
       </div>
+      <div class="sr-only" id="suggestLive" aria-live="polite"></div>
       <div class="filters" id="journalFilters"></div>
+      <div class="adv">
+        <span class="group">Years
+          <input id="yFrom" type="number" inputmode="numeric" aria-label="From year"> –
+          <input id="yTo" type="number" inputmode="numeric" aria-label="To year">
+        </span>
+        <label>Plain words search
+          <select id="scope">
+            <option value="any">everywhere</option>
+            <option value="title">titles only</option>
+            <option value="abstract">abstracts only</option>
+            <option value="author">authors only</option>
+          </select>
+        </label>
+        <span class="group" id="ops" aria-label="Insert operator">
+          <button type="button" class="chip" data-ins="AND">AND</button>
+          <button type="button" class="chip" data-ins="OR">OR</button>
+          <button type="button" class="chip" data-ins="NOT">NOT</button>
+          <button type="button" class="chip" data-ins="(">(</button>
+          <button type="button" class="chip" data-ins=")">)</button>
+          <button type="button" class="chip" data-ins="&quot;&quot;" aria-label="Quotation marks">“ ”</button>
+        </span>
+      </div>
+      <details class="syntax">
+        <summary>Boolean syntax</summary>
+        <div class="syntax-grid">
+          <code>sukuk risk</code><span>Both words (a space means AND)</span>
+          <code>sukuk OR waqf</code><span>Either word. Operators must be capitals; <code>|</code> also works</span>
+          <code>sukuk NOT equity</code><span>Exclude a word. <code>-equity</code> does the same</span>
+          <code>"profit sharing"</code><span>Exact phrase</span>
+          <code>(sukuk OR waqf) AND risk</code><span>Brackets group; NOT binds first, then AND, then OR</span>
+          <code>author:ariff</code><span>Also <code>title:</code> <code>abstract:</code> <code>journal:</code>. One word or "quoted phrase" each</span>
+          <code>year:2018..2022</code><span>Also <code>year:2020</code> and <code>year:&gt;=2020</code></span>
+        </div>
+      </details>
     </div>
   </div>
 </section>
@@ -527,6 +618,7 @@
     </label>
   </div>
 
+  <div id="parseNote" class="parse-note" hidden></div>
   <section id="results" aria-live="polite"></section>
   <button id="loadmore" hidden>Reveal 40 more entries</button>
 
@@ -620,23 +712,317 @@ function animateCount(el, to, opts={}){
   requestAnimationFrame(step);
 }
 
+/* ======================= Boolean search =======================
+   Syntax: AND OR NOT (capitals) · ( ) · "exact phrase" · -term · a | b
+   Fields: title: abstract: author: journal: year:2020 year:2018..2022 year:>=2020
+   Precedence: NOT > AND > OR. Adjacent terms mean AND. Forgiving: stray
+   operators / unbalanced brackets are repaired and reported, never fatal. */
+const ANYF = ['title','abstract','author','journal'];
+
+function tokenize(s){
+  const out = []; let i = 0;
+  while(i < s.length){
+    const c = s[i];
+    if(/\s/.test(c)){ i++; continue; }
+    if(c === '(' || c === ')'){ out.push({t:c}); i++; continue; }
+    if(c === '|'){ out.push({t:'OR'}); i++; continue; }
+    let neg = false, field = null;
+    if(c === '-' && i+1 < s.length && !/\s/.test(s[i+1])){ neg = true; i++; }
+    if(neg && s[i] === '('){ out.push({t:'NOT'}); continue; }
+    const m = /^(title|abstract|author|journal|year):/i.exec(s.slice(i));
+    if(m){ field = m[1].toLowerCase(); i += m[0].length; }
+    if(s[i] === '"'){
+      const j = s.indexOf('"', i+1), end = j < 0 ? s.length : j;
+      const v = s.slice(i+1, end).trim(); i = end + 1;
+      if(v) out.push({t:'TERM', v, field, neg});
+      continue;
+    }
+    let j = i;
+    while(j < s.length && !/[\s()"|]/.test(s[j])) j++;
+    if(j === i){ if(!neg && !field) i++; continue; }
+    let v = s.slice(i, j); i = j;
+    if(!field && !neg && (v === 'AND' || v === 'OR' || v === 'NOT')){ out.push({t:v}); continue; }
+    v = v.replace(/[,;:.]+$/, '');
+    if(v && v !== '-') out.push({t:'TERM', v, field, neg});
+  }
+  return out;
+}
+
+function parseQuery(src){
+  const toks = tokenize(src), warn = []; let p = 0;
+  const peek = () => toks[p];
+  const and = (a,b) => a && b ? {op:'and', l:a, r:b} : (a || b);
+  function term(k){
+    let n;
+    if(k.field === 'year'){
+      const m = /^(>=|<=|>|<)?(\d{4})(?:\.\.(\d{4}))?$/.exec(k.v);
+      if(!m){ warn.push(`Ignored year:${k.v} — use year:2020, year:2018..2022 or year:>=2020.`); return null; }
+      n = {op:'year', cmp:m[1] || '', a:+m[2], b:m[3] ? +m[3] : null};
+    } else {
+      n = {op:'term', f:k.field || 'scope', v:k.v.toLowerCase(), raw:k.v};
+    }
+    return k.neg ? {op:'not', x:n} : n;
+  }
+  function primary(){
+    const k = peek(); if(!k) return null;
+    if(k.t === '('){
+      p++; const e = orExpr();
+      if(peek() && peek().t === ')') p++; else warn.push('Missing “)” — closed automatically.');
+      return e;
+    }
+    if(k.t === 'TERM'){ p++; return term(k); }
+    return null;
+  }
+  function notExpr(){
+    if(peek() && peek().t === 'NOT'){ p++; const x = notExpr(); return x ? {op:'not', x} : null; }
+    return primary();
+  }
+  function andExpr(){
+    let a = notExpr();
+    for(;;){
+      const k = peek();
+      if(!k || k.t === ')' || k.t === 'OR') break;
+      if(k.t === 'AND') p++;
+      a = and(a, notExpr());
+    }
+    return a;
+  }
+  function orExpr(){
+    let a = andExpr();
+    while(peek() && peek().t === 'OR'){
+      p++; const b = andExpr();
+      a = a && b ? {op:'or', l:a, r:b} : (a || b);
+    }
+    return a;
+  }
+  let root = null;
+  while(p < toks.length){
+    root = and(root, orExpr());
+    if(p < toks.length){ if(peek().t === ')') warn.push('Unmatched “)” ignored.'); p++; }
+  }
+  return {root, warn};
+}
+
+function toPred(n, scope){
+  if(!n) return null;
+  if(n.op === 'and'){ const a = toPred(n.l, scope), b = toPred(n.r, scope); return r => a(r) && b(r); }
+  if(n.op === 'or'){ const a = toPred(n.l, scope), b = toPred(n.r, scope); return r => a(r) || b(r); }
+  if(n.op === 'not'){ const a = toPred(n.x, scope); return r => !a(r); }
+  if(n.op === 'year') return r => {
+    const y = r.y; if(!y) return false;
+    if(n.b != null) return y >= n.a && y <= n.b;
+    switch(n.cmp){ case '>=': return y >= n.a; case '<=': return y <= n.a;
+                   case '>': return y > n.a;  case '<': return y < n.a; default: return y === n.a; }
+  };
+  const f = n.f === 'scope' ? scope : n.f;
+  return f === 'any' ? r => ANYF.some(k => r._h[k].includes(n.v)) : r => r._h[f].includes(n.v);
+}
+
+function termsOf(n, out){
+  if(!n || n.op === 'not' || n.op === 'year') return out;
+  if(n.op === 'and' || n.op === 'or'){ termsOf(n.l, out); termsOf(n.r, out); }
+  else if(n.f !== 'author' && n.f !== 'journal') out.push(n.raw);
+  return out;
+}
+
+function explain(n, scope){
+  const flat = (x, op) => x.op === op ? [...flat(x.l, op), ...flat(x.r, op)] : [x];
+  if(n.op === 'and' || n.op === 'or')
+    return '(' + flat(n, n.op).map(x => explain(x, scope)).join(' ' + n.op.toUpperCase() + ' ') + ')';
+  if(n.op === 'not') return 'NOT ' + explain(n.x, scope);
+  if(n.op === 'year') return 'year ' + (n.b != null ? `${n.a}–${n.b}` : `${n.cmp || '='}${n.a}`);
+  const f = n.f === 'scope' ? scope : n.f;
+  return (f === 'any' ? '' : f + ' ') + '“' + n.raw + '”';
+}
+
+/* --- UI --- */
+Object.assign(state, { scope:'any', yFrom:null, yTo:null, pred:null, hl:null, first:'' });
+const searchEl = $('#search'), sgBox = $('#suggest'), sgLive = $('#suggestLive'), noteEl = $('#parseNote');
+
+function compileQuery(){
+  const src = state.q.trim();
+  state.pred = null; state.hl = null; state.first = '';
+  noteEl.hidden = true;
+  if(!src) return;
+  const {root, warn} = parseQuery(src);
+  state.pred = toPred(root, state.scope);
+  const t = termsOf(root, []);
+  state.first = t[0] || '';
+  if(t.length) state.hl = new RegExp('(' + t.sort((a,b) => b.length - a.length)
+    .map(x => escapeHtml(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'ig');
+  const advanced = /\b(AND|OR|NOT)\b|[():|"]|(^|\s)-\S/.test(src);
+  if(root && (advanced || warn.length) || warn.length){
+    noteEl.innerHTML = (root ? 'Reading this as: <b>' + escapeHtml(explain(root, state.scope)) + '</b>' : '') +
+      warn.map(w => `<span class="warn">${escapeHtml(w)}</span>`).join('');
+    noteEl.hidden = false;
+  }
+}
+
+function refilter(){
+  if(state.yFrom != null && state.yTo != null && state.yFrom > state.yTo){
+    [state.yFrom, state.yTo] = [state.yTo, state.yFrom];
+    $('#yFrom').value = state.yFrom; $('#yTo').value = state.yTo;
+  }
+  state.q = searchEl.value; state.shown = PAGE_SIZE; state.hasSearched = true;
+  compileQuery(); render(); updateUrl();
+}
+$('#scope').addEventListener('change', e => { state.scope = e.target.value; refilter(); });
+['yFrom','yTo'].forEach(id => $('#' + id).addEventListener('change', e => {
+  const v = parseInt(e.target.value, 10); state[id] = Number.isFinite(v) ? v : null; refilter();
+}));
+
+/* Operator buttons insert at the caret */
+$('#ops').addEventListener('mousedown', e => e.preventDefault());
+$('#ops').addEventListener('click', e => {
+  const b = e.target.closest('[data-ins]'); if(!b) return;
+  const ins = b.dataset.ins, a = searchEl.selectionStart, z = searchEl.selectionEnd;
+  const pre = searchEl.value.slice(0, a);
+  const txt = /^[A-Z]+$/.test(ins) ? (pre && !/[\s(]$/.test(pre) ? ' ' : '') + ins + ' ' : ins;
+  searchEl.setRangeText(txt, a, z, 'end');
+  if(ins === '""') searchEl.setSelectionRange(searchEl.selectionStart - 1, searchEl.selectionStart - 1);
+  searchEl.focus(); updateSuggest();
+});
+
+/* ---------- Autocomplete ---------- */
+const STOP = new Set('the and for with from that this are was were into onto over under between among their its not but can may has have had how what when where which who why'.split(' '));
+const VOC = {words:[], phrases:[], authors:[], journals:[]};
+let sgItems = [], sgActive = -1, sgTimer;
+
+/* Adjust this to match how authors are written in articles.json (r.a) */
+const splitAuthors = s => (s || '').split(/\s*(?:;|,|\band\b|&)\s*/).map(x => x.trim()).filter(x => x.length > 2 && !/^et al/i.test(x));
+
+function buildVocab(data){
+  const wc = new Map(), bc = new Map(), ac = new Map();
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  const rank = (m, min) => [...m].filter(([,n]) => n >= min).sort((a,b) => b[1] - a[1]).map(x => x[0]);
+  data.forEach(r => {
+    let prev = null;
+    ((r.t || '').toLowerCase().match(/[a-z][a-z'’-]{2,}/g) || []).forEach(w => {
+      if(STOP.has(w)){ prev = null; return; }
+      bump(wc, w); if(prev) bump(bc, prev + ' ' + w); prev = w;
+    });
+    splitAuthors(r.a).forEach(n => bump(ac, n));
+  });
+  VOC.words = rank(wc, 2); VOC.phrases = rank(bc, 3); VOC.authors = rank(ac, 1); VOC.journals = JOURNALS;
+}
+
+function initBoolean(data){
+  data.forEach(r => { r._h = { title:(r.t||'').toLowerCase(), abstract:(r.ab||'').toLowerCase(),
+                              author:(r.a||'').toLowerCase(), journal:(r.j||'').toLowerCase() }; });
+  buildVocab(data);
+  const ys = data.map(r => r.y).filter(Boolean), lo = Math.min(...ys), hi = Math.max(...ys);
+  [['yFrom', lo], ['yTo', hi]].forEach(([id, v]) => { const el = $('#' + id); el.min = lo; el.max = hi; el.placeholder = v; });
+}
+
+function getSuggestions(){
+  const v = searchEl.value, c = searchEl.selectionStart ?? v.length, before = v.slice(0, c);
+  const quoted = (before.match(/"/g) || []).length % 2 === 1;
+  let start, tok, field = null;
+  if(quoted){
+    start = before.lastIndexOf('"') + 1; tok = before.slice(start);
+    const m = /(title|abstract|author|journal)\s*:$/i.exec(before.slice(0, start - 1));
+    field = m ? m[1].toLowerCase() : null;
+  } else {
+    const m = /[^\s()|]*$/.exec(before); start = m.index; tok = m[0];
+    const f = /^-?(title|abstract|author|journal|year):/i.exec(tok);
+    if(f){ field = f[1].toLowerCase(); start += f[0].length; tok = tok.slice(f[0].length); }
+    else if(tok[0] === '-'){ start++; tok = tok.slice(1); }
+  }
+  const q = tok.toLowerCase(), out = [];
+  const push = (list, kind, lim, test, wrap) => {
+    let n = 0;
+    for(const x of list){
+      if(n >= lim) break;
+      const low = x.toLowerCase();
+      if(low === q || !test(low)) continue;
+      out.push({text:x, insert:x, kind, start, quoted, wrap:wrap && !quoted, q}); n++;
+    }
+  };
+  const pfx = low => low.startsWith(q), word = low => (' ' + low).includes(' ' + q);
+
+  if(!field && !quoted && !q){
+    const last = before.trim().split(/\s+/).pop();
+    if(!before.trim()) ['title:','author:','journal:','abstract:','year:'].forEach(f => out.push({text:f, insert:f, kind:'filter', start, q}));
+    else if(/\s$/.test(before) && last && !/^(AND|OR|NOT|\||.*\()$/.test(last)) ['AND','OR','NOT'].forEach(o => out.push({text:o, insert:o, kind:'operator', start, q}));
+    return out;
+  }
+  if(field === 'author') push(VOC.authors, 'author', 8, word, true);
+  else if(field === 'journal') push(VOC.journals, 'journal', 8, word, true);
+  else if(field === 'title' || field === 'abstract'){ if(quoted) push(VOC.phrases, 'phrase', 6, pfx); else if(q.length > 1) push(VOC.words, 'word', 8, pfx); }
+  else if(!field){
+    if(quoted){ push(VOC.phrases, 'phrase', 5, pfx); push(VOC.journals, 'journal', 2, word); push(VOC.authors, 'author', 2, word); }
+    else {
+      if(start > 0 && q.length > 1 && tok === tok.toUpperCase()) ['AND','OR','NOT'].filter(o => o.startsWith(tok)).forEach(o => out.push({text:o, insert:o, kind:'operator', start, q}));
+      if(q.length > 1) ['title:','author:','journal:','abstract:','year:'].filter(f => f.startsWith(q)).forEach(f => out.push({text:f, insert:f, kind:'filter', start, q}));
+      if(q.length > 2) push(VOC.phrases, 'phrase', 2, pfx, true);
+      if(q.length > 1) push(VOC.words, 'word', 4, pfx);
+      if(q.length > 2){ push(VOC.authors, 'author', 2, word, true); push(VOC.journals, 'journal', 2, word, true); }
+    }
+  }
+  return out.slice(0, 8);
+}
+
+function paintSuggest(){
+  sgBox.innerHTML = sgItems.map((it, i) => {
+    const t = it.text, hit = t.toLowerCase().startsWith(it.q) ? it.q.length : 0;
+    return `<li role="option" id="sg${i}" data-i="${i}" aria-selected="${i === sgActive}" class="${it.kind === 'operator' || it.kind === 'filter' ? 'sg-mono' : ''}">` +
+      `<span><b>${escapeHtml(t.slice(0, hit))}</b>${escapeHtml(t.slice(hit))}</span><span class="sg-kind">${it.kind}</span></li>`;
+  }).join('');
+  sgBox.hidden = !sgItems.length;
+  searchEl.setAttribute('aria-expanded', String(!!sgItems.length));
+  if(sgActive >= 0) searchEl.setAttribute('aria-activedescendant', 'sg' + sgActive); else searchEl.removeAttribute('aria-activedescendant');
+}
+function updateSuggest(){
+  sgItems = getSuggestions(); sgActive = -1; paintSuggest();
+  clearTimeout(sgTimer);
+  sgTimer = setTimeout(() => { sgLive.textContent = sgItems.length ? sgItems.length + ' suggestions available' : ''; }, 400);
+}
+function closeSuggest(){ sgItems = []; sgActive = -1; paintSuggest(); }
+
+function applySuggest(it){
+  const v = searchEl.value, c = searchEl.selectionStart;
+  let end = c, ins;
+  if(it.quoted){ if(v[c] === '"') end = c + 1; ins = it.insert + '" '; }
+  else if(it.wrap) ins = '"' + it.insert + '" ';
+  else if(it.kind === 'filter') ins = it.insert;
+  else ins = it.insert + ' ';
+  searchEl.setRangeText(ins, it.start, end, 'end');
+  searchEl.focus();
+  if(it.kind === 'filter') updateSuggest(); else closeSuggest();
+}
+
+searchEl.addEventListener('input', updateSuggest);
+searchEl.addEventListener('click', updateSuggest);
+searchEl.addEventListener('focus', updateSuggest);
+searchEl.addEventListener('blur', closeSuggest);
+sgBox.addEventListener('mousedown', e => e.preventDefault());
+sgBox.addEventListener('click', e => { const li = e.target.closest('li'); if(li) applySuggest(sgItems[+li.dataset.i]); });
+searchEl.addEventListener('keydown', e => {
+  const open = !sgBox.hidden;
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    if(!open){ updateSuggest(); if(sgBox.hidden) return; }
+    e.preventDefault();
+    sgActive = e.key === 'ArrowDown' ? (sgActive + 1) % sgItems.length : (sgActive < 0 ? sgItems.length - 1 : (sgActive - 1 + sgItems.length) % sgItems.length);
+    paintSuggest();
+  } else if(e.key === 'Enter'){
+    if(open && sgActive >= 0){ e.preventDefault(); applySuggest(sgItems[sgActive]); } else runSearch();
+  } else if(e.key === 'Tab' && open && sgActive >= 0){ e.preventDefault(); applySuggest(sgItems[sgActive]);
+  } else if(e.key === 'Escape' && open){ e.preventDefault(); closeSuggest(); }
+});
+
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function highlight(text, q){
-  if(!q) return escapeHtml(text);
   const esc = escapeHtml(text);
-  try{
-    const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'ig');
-    return esc.replace(re, '<mark>$1</mark>');
-  }catch(e){ return esc; }
+  return (q && state.hl) ? esc.replace(state.hl, '<mark>$1</mark>') : esc;
 }
 
 function snippet(abstract, q, len=280){
   if(!abstract) return "No abstract available.";
   if(!q) return abstract.length > len ? abstract.slice(0,len)+'…' : abstract;
-  const idx = abstract.toLowerCase().indexOf(q.toLowerCase());
+  const idx = state.first ? abstract.toLowerCase().indexOf(state.first.toLowerCase()) : -1;
   if(idx === -1) return abstract.length > len ? abstract.slice(0,len)+'…' : abstract;
   const start = Math.max(0, idx - 80);
   const end = Math.min(abstract.length, idx + 200);
@@ -694,19 +1080,11 @@ function buildFilters(){
 }
 
 function getFiltered(){
-  const q = state.q.trim().toLowerCase();
   let rows = ALL;
-  if(state.journal !== 'ALL'){
-    rows = rows.filter(r => r.j === state.journal);
-  }
-  if(q){
-    rows = rows.filter(r =>
-      r.t.toLowerCase().includes(q) ||
-      r.ab.toLowerCase().includes(q) ||
-      r.j.toLowerCase().includes(q) ||
-      r.a.toLowerCase().includes(q)
-    );
-  }
+  if(state.journal !== 'ALL') rows = rows.filter(r => r.j === state.journal);
+  if(state.yFrom != null) rows = rows.filter(r => r.y >= state.yFrom);
+  if(state.yTo != null) rows = rows.filter(r => r.y && r.y <= state.yTo);
+  if(state.pred) rows = rows.filter(state.pred);
   const sorted = rows.slice();
   switch(state.sort){
     case 'year_desc': sorted.sort((a,b) => (b.y||0)-(a.y||0)); break;
@@ -771,24 +1149,26 @@ function updateUrl(){
   const params = new URLSearchParams();
   if(state.q.trim()) params.set('q', state.q.trim());
   if(state.journal !== 'ALL') params.set('journal', state.journal);
+  if(state.scope !== 'any') params.set('in', state.scope);
+  if(state.yFrom != null) params.set('from', state.yFrom);
+  if(state.yTo != null) params.set('to', state.yTo);
   const qs = params.toString();
   const newUrl = window.location.pathname + (qs ? '?' + qs : '');
   history.replaceState(null, '', newUrl);
 }
 
 function runSearch(){
+  closeSuggest();
   state.q = document.getElementById('search').value;
   state.shown = PAGE_SIZE;
   state.hasSearched = true;
+  compileQuery();
   render();
   updateUrl();
   document.querySelector('.results-section').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 document.getElementById('searchBtn').addEventListener('click', runSearch);
-document.getElementById('search').addEventListener('keydown', e => {
-  if(e.key === 'Enter') runSearch();
-});
 
 document.getElementById('sortSelect').addEventListener('change', e => {
   state.sort = e.target.value;
@@ -813,12 +1193,17 @@ fetch('articles.json')
     animateCount(document.getElementById('statYears'), (maxY-minY+1), {dur:1200});
 
     buildFilters();
+    initBoolean(data);
 
     // Deep-link support: ?q=keyword and/or ?journal=Journal+Name
     const params = new URLSearchParams(window.location.search);
     const urlQ = params.get('q');
     const urlJournal = params.get('journal');
-    if(urlQ || urlJournal){
+    const urlIn = params.get('in'), urlFrom = parseInt(params.get('from'), 10), urlTo = parseInt(params.get('to'), 10);
+    if(['title','abstract','author'].includes(urlIn)){ state.scope = urlIn; $('#scope').value = urlIn; }
+    if(urlFrom){ state.yFrom = urlFrom; $('#yFrom').value = urlFrom; }
+    if(urlTo){ state.yTo = urlTo; $('#yTo').value = urlTo; }
+    if(urlQ || urlJournal || state.scope !== 'any' || state.yFrom != null || state.yTo != null){
       if(urlQ){
         document.getElementById('search').value = urlQ;
         state.q = urlQ;
@@ -837,6 +1222,7 @@ fetch('articles.json')
         }
       }
       state.hasSearched = true;
+      compileQuery();
     }
     render();
   })
