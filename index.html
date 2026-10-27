@@ -250,12 +250,6 @@
     border-radius:3px;
     padding:6px 6px 6px 16px;
   }
-  .search-row .glyph{
-    font-family:'Fraunces', serif;
-    font-style:italic;
-    font-size:20px;
-    color:var(--brass-deep);
-  }
   #search{
     flex:1;
     border:none;
@@ -565,12 +559,12 @@
 
     <div class="search-block">
       <div class="search-row">
-        <span class="glyph"></span>
-        <select id="scope" class="scope-select" aria-label="Search in">
+        <select id="scope" class="scope-select" aria-label="Filter by">
           <option value="any">All fields</option>
           <option value="title">Title</option>
           <option value="abstract">Abstract</option>
           <option value="author">Author</option>
+          <option value="journal">Journal</option>
         </select>
         <input id="search" type="text" role="combobox" aria-label="Search the catalogue" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest"
                placeholder="Try: sukuk AND (risk OR &quot;profit sharing&quot;) -equity" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
@@ -601,8 +595,7 @@
           <code>sukuk NOT equity</code><span>Exclude a word. <code>-equity</code> does the same</span>
           <code>"profit sharing"</code><span>Exact phrase</span>
           <code>(sukuk OR waqf) AND risk</code><span>Brackets group; NOT binds first, then AND, then OR</span>
-          <code>author:ariff</code><span>Also <code>title:</code> <code>abstract:</code> <code>journal:</code>. One word or "quoted phrase" each</span>
-          <code>year:2018..2022</code><span>Also <code>year:2020</code> and <code>year:&gt;=2020</code></span>
+          <code>Filters</code><span>Use the dropdown before the search box and the year boxes below it</span>
         </div>
       </details>
     </div>
@@ -826,7 +819,7 @@ function toPred(n, scope){
 function termsOf(n, out){
   if(!n || n.op === 'not' || n.op === 'year') return out;
   if(n.op === 'and' || n.op === 'or'){ termsOf(n.l, out); termsOf(n.r, out); }
-  else if(n.f !== 'author' && n.f !== 'journal') out.push(n.raw);
+  else if(!['author','journal'].includes(n.f === 'scope' ? state.scope : n.f)) out.push(n.raw);
   return out;
 }
 
@@ -947,8 +940,7 @@ function getSuggestions(){
 
   if(!field && !quoted && !q){
     const last = before.trim().split(/\s+/).pop();
-    if(!before.trim()) ['title:','author:','journal:','abstract:','year:'].forEach(f => out.push({text:f, insert:f, kind:'filter', start, q}));
-    else if(/\s$/.test(before) && last && !/^(AND|OR|NOT|\||.*\()$/.test(last)) ['AND','OR','NOT'].forEach(o => out.push({text:o, insert:o, kind:'operator', start, q}));
+    if(/\s$/.test(before) && last && !/^(AND|OR|NOT|\||.*\()$/.test(last)) ['AND','OR','NOT'].forEach(o => out.push({text:o, insert:o, kind:'operator', start, q}));
     return out;
   }
   if(field === 'author') push(VOC.authors, 'author', 8, word, true);
@@ -958,7 +950,6 @@ function getSuggestions(){
     if(quoted){ push(VOC.phrases, 'phrase', 5, pfx); push(VOC.journals, 'journal', 2, word); push(VOC.authors, 'author', 2, word); }
     else {
       if(start > 0 && q.length > 1 && tok === tok.toUpperCase()) ['AND','OR','NOT'].filter(o => o.startsWith(tok)).forEach(o => out.push({text:o, insert:o, kind:'operator', start, q}));
-      if(q.length > 1) ['title:','author:','journal:','abstract:','year:'].filter(f => f.startsWith(q)).forEach(f => out.push({text:f, insert:f, kind:'filter', start, q}));
       if(q.length > 2) push(VOC.phrases, 'phrase', 2, pfx, true);
       if(q.length > 1) push(VOC.words, 'word', 4, pfx);
       if(q.length > 2){ push(VOC.authors, 'author', 2, word, true); push(VOC.journals, 'journal', 2, word, true); }
@@ -1205,7 +1196,7 @@ fetch('articles.json')
     const urlQ = params.get('q');
     const urlJournal = params.get('journal');
     const urlIn = params.get('in'), urlFrom = parseInt(params.get('from'), 10), urlTo = parseInt(params.get('to'), 10);
-    if(['title','abstract','author'].includes(urlIn)){ state.scope = urlIn; $('#scope').value = urlIn; }
+    if(['title','abstract','author','journal'].includes(urlIn)){ state.scope = urlIn; $('#scope').value = urlIn; }
     if(urlFrom){ state.yFrom = urlFrom; $('#yFrom').value = urlFrom; }
     if(urlTo){ state.yTo = urlTo; $('#yTo').value = urlTo; }
     if(urlQ || urlJournal || state.scope !== 'any' || state.yFrom != null || state.yTo != null){
